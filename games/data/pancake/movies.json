@@ -1,0 +1,18 @@
+{
+  "displayName": "Movies",
+  "attributes": ["Release Year", "Genre", "Lead Actor"],
+  "items": [
+    {
+      "name": "Inception",
+      "Release Year": "2010",
+      "Genre": "Sci-Fi",
+      "Lead Actor": "Leonardo DiCaprio"
+    },
+    {
+      "name": "The Dark Knight",
+      "Release Year": "2008",
+      "Genre": "Action",
+      "Lead Actor": "Christian Bale"
+    }
+  ]
+}

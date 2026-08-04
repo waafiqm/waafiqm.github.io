@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pancake - Waffling On</title>
+  <title>Pancake</title>
 </head>
 <body>
 
   <header>
-    <h1>Pancake</h1>
+    <h1>pancake</h1>
     <p><a href="../index.html">&larr; Back to Home</a></p>
   </header>
 
@@ -23,7 +23,17 @@
         <!-- Player Count -->
         <div>
           <label for="player-count"><strong>Number of Players (3+):</strong></label>
-          <input type="number" id="player-count" min="3" value="4" required>
+          <input type="number" id="player-count" min="3" value="3" required>
+        </div>
+
+        <br>
+
+        <!-- Dynamic Player Names Container -->
+        <div id="player-names-container">
+          <strong>Player Names:</strong>
+          <div id="player-inputs-list" style="margin-top: 8px;">
+            <!-- Dynamically populated name inputs -->
+          </div>
         </div>
 
         <br>
@@ -41,8 +51,8 @@
         <!-- Category Select -->
         <div>
           <label for="category-select"><strong>Category:</strong></label>
-          <select id="category-select" required>
-            <!-- Dynamically populated from JSON -->
+          <select id="category-select" min="3" required>
+            <!-- Populated dynamically from AVAILABLE_CATEGORIES array -->
           </select>
         </div>
 
@@ -58,12 +68,27 @@
 
         <br>
 
-        <!-- Hint Options (Hidden until toggle is checked) -->
-        <div id="hint-options-container" style="display: none;">
-          <label for="hint-count"><strong>Number of Hints for Impostors:</strong></label>
-          <select id="hint-count">
-            <!-- Dynamically populated based on chosen category -->
-          </select>
+        <!-- Hint Options Container (Hidden until toggle is checked) -->
+        <div id="hint-options-container" style="display: none; border: 1px inline #ccc; padding: 10px;">
+          <div>
+            <label for="hint-count"><strong>Number of Hints for Impostors:</strong></label>
+            <select id="hint-count">
+              <!-- Dynamically populated based on chosen category -->
+            </select>
+          </div>
+
+          <br>
+
+          <!-- Attribute Category Checkboxes -->
+          <div>
+            <strong>Allowed Hint Categories:</strong>
+            <br>
+            <button type="button" id="select-all-attrs-btn">Select All</button>
+            <button type="button" id="deselect-all-attrs-btn">Deselect All</button>
+            <div id="attribute-checkboxes-list" style="margin-top: 8px;">
+              <!-- Dynamically generated checkboxes per category -->
+            </div>
+          </div>
         </div>
 
         <br>
@@ -97,9 +122,9 @@
       <button id="reveal-impostors-btn">Reveal Impostors</button>
 
       <div id="impostors-reveal-content" style="display: none; border: 1px solid #000; padding: 10px; margin-top: 10px;">
-        <h3>The Secret Word Was: <span id="final-secret-word"></span></h3>
-        <p><strong>The Impostor(s):</strong></p>
+        <h3><strong>The Impostor(s):</strong></h3>
         <ul id="impostors-list"></ul>
+        <p>The Secret Word Was: <span id="final-secret-word"></span></p>
       </div>
 
       <br><br>
@@ -108,10 +133,17 @@
   </main>
 
   <script>
+    // --- CATEGORIES CONFIGURATION ---
+    const AVAILABLE_CATEGORIES = [
+      { key: "nba", name: "NBA Players" },
+      { key: "movies", name: "Movies" }
+    ];
+
     // --- GLOBAL DATA & GAME STATE ---
-    let categoriesData = {};
+    let currentCategoryData = null;
 
     let gameState = {
+      playerNames: [],
       totalPlayers: 0,
       impostorCount: 0,
       impostorIndices: [],
@@ -122,11 +154,15 @@
 
     // --- DOM ELEMENTS ---
     const playerCountInput = document.getElementById("player-count");
+    const playerInputsList = document.getElementById("player-inputs-list");
     const impostorCountSelect = document.getElementById("impostor-count");
     const categorySelect = document.getElementById("category-select");
     const hintsToggle = document.getElementById("impostor-hints-toggle");
     const hintOptionsContainer = document.getElementById("hint-options-container");
     const hintCountSelect = document.getElementById("hint-count");
+    const attributeCheckboxesList = document.getElementById("attribute-checkboxes-list");
+    const selectAllAttrsBtn = document.getElementById("select-all-attrs-btn");
+    const deselectAllAttrsBtn = document.getElementById("deselect-all-attrs-btn");
     const setupForm = document.getElementById("setup-form");
     const startBtn = document.getElementById("start-btn");
 
@@ -146,34 +182,100 @@
     const finalSecretWord = document.getElementById("final-secret-word");
     const impostorsList = document.getElementById("impostors-list");
 
-    // --- FETCH DATA FROM EXTERNAL JSON ---
-    async function loadGameData() {
+    // --- SESSION STORAGE HELPERS ---
+    function getSavedPlayerNames() {
+      const saved = sessionStorage.getItem("pancake_player_names");
+      return saved ? JSON.parse(saved) : [];
+    }
+
+    function savePlayerNames(names) {
+      sessionStorage.setItem("pancake_player_names", JSON.stringify(names));
+    }
+
+    function getSavedPlayerCount() {
+      const saved = sessionStorage.getItem("pancake_player_count");
+      return saved ? parseInt(saved, 10) : null;
+    }
+
+    function savePlayerCount(count) {
+      sessionStorage.setItem("pancake_player_count", count);
+    }
+
+    // --- RENDER DYNAMIC PLAYER NAME INPUTS ---
+    function updatePlayerNameInputs() {
+      const count = parseInt(playerCountInput.value, 10) || 3;
+      const existingSavedNames = getSavedPlayerNames();
+      
+      // Preserve current input values if the user is currently typing
+      const currentInputs = Array.from(document.querySelectorAll(".player-name-input")).map(input => input.value);
+      
+      playerInputsList.innerHTML = "";
+
+      for (let i = 0; i < count; i++) {
+        const div = document.createElement("div");
+        div.style.marginBottom = "5px";
+
+        const label = document.createElement("label");
+        label.innerText = `Player ${i + 1}: `;
+        label.htmlFor = `player-name-${i}`;
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.id = `player-name-${i}`;
+        input.className = "player-name-input";
+        
+        // Fill input order: 1. Current typing, 2. SessionStorage, 3. Default fallback
+        const savedValue = currentInputs[i] || existingSavedNames[i] || `Player ${i + 1}`;
+        input.value = savedValue;
+        input.required = true;
+
+        // Auto-save on input change
+        input.addEventListener("input", saveCurrentInputNames);
+
+        div.appendChild(label);
+        div.appendChild(input);
+        playerInputsList.appendChild(div);
+      }
+
+      saveCurrentInputNames();
+    }
+
+    function saveCurrentInputNames() {
+      const names = Array.from(document.querySelectorAll(".player-name-input")).map(
+        input => input.value.trim() || input.placeholder || "Player"
+      );
+      savePlayerNames(names);
+    }
+
+    // --- POPULATE CATEGORY DROPDOWN ---
+    function populateCategoryDropdown() {
+      categorySelect.innerHTML = "";
+      AVAILABLE_CATEGORIES.forEach(cat => {
+        const option = document.createElement("option");
+        option.value = cat.key;
+        option.innerText = cat.name;
+        categorySelect.appendChild(option);
+      });
+    }
+
+    // --- FETCH SPECIFIC CATEGORY JSON ---
+    async function loadCategoryData(categoryKey) {
+      startBtn.disabled = true;
+      startBtn.innerText = "Loading Category...";
+
       try {
-        const response = await fetch('./pancake-data.json');
-        if (!response.ok) throw new Error("Failed to load JSON");
+        const response = await fetch(`./data/pancake/${categoryKey}.json`);
+        if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
         
-        categoriesData = await response.json();
-        
-        populateCategoryDropdown();
-        updateImpostorOptions();
-        updateHintOptions();
+        currentCategoryData = await response.json();
+        updateHintUI();
 
         startBtn.innerText = "Start Game";
         startBtn.disabled = false;
       } catch (error) {
         console.error(error);
-        alert("Error loading pancake-data.json! Make sure the file exists in the same folder and you're running through a web server.");
+        alert(`Error loading data for "${categoryKey}"! Make sure ./data/pancake/${categoryKey}.json exists.`);
       }
-    }
-
-    function populateCategoryDropdown() {
-      categorySelect.innerHTML = "";
-      Object.keys(categoriesData).forEach(key => {
-        const option = document.createElement("option");
-        option.value = key;
-        option.innerText = categoriesData[key].displayName || key;
-        categorySelect.appendChild(option);
-      });
     }
 
     function updateImpostorOptions() {
@@ -188,37 +290,83 @@
       }
     }
 
-    function updateHintOptions() {
-      const selectedCatKey = categorySelect.value;
-      if (!selectedCatKey || !categoriesData[selectedCatKey]) return;
+    // --- POPULATE HINT COUNTS AND ATTRIBUTE CHECKBOXES ---
+    function updateHintUI() {
+      if (!currentCategoryData) return;
 
-      const maxAttributes = categoriesData[selectedCatKey].attributes.length;
+      const attributes = currentCategoryData.attributes;
+
+      // 1. Populate Hint Count Select Dropdown
       hintCountSelect.innerHTML = "";
-      for (let i = 1; i <= maxAttributes; i++) {
+      for (let i = 1; i <= attributes.length; i++) {
         const option = document.createElement("option");
         option.value = i;
         option.innerText = `${i} Hint${i > 1 ? 's' : ''}`;
         hintCountSelect.appendChild(option);
       }
+
+      // 2. Populate Attribute Checkboxes
+      attributeCheckboxesList.innerHTML = "";
+      attributes.forEach(attr => {
+        const div = document.createElement("div");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = attr;
+        checkbox.className = "attr-checkbox";
+        checkbox.id = `attr-${attr}`;
+        checkbox.checked = true; // Checked by default
+
+        const label = document.createElement("label");
+        label.htmlFor = `attr-${attr}`;
+        label.innerText = ` ${attr}`;
+
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        attributeCheckboxesList.appendChild(div);
+      });
     }
 
     // --- EVENT LISTENERS ---
-    playerCountInput.addEventListener("input", updateImpostorOptions);
-    categorySelect.addEventListener("change", updateHintOptions);
+    playerCountInput.addEventListener("input", () => {
+      savePlayerCount(playerCountInput.value);
+      updateImpostorOptions();
+      updatePlayerNameInputs();
+    });
+    
+    categorySelect.addEventListener("change", (e) => {
+      loadCategoryData(e.target.value);
+    });
+    
     hintsToggle.addEventListener("change", (e) => {
       hintOptionsContainer.style.display = e.target.checked ? "block" : "none";
+    });
+
+    selectAllAttrsBtn.addEventListener("click", () => {
+      document.querySelectorAll(".attr-checkbox").forEach(cb => cb.checked = true);
+    });
+
+    deselectAllAttrsBtn.addEventListener("click", () => {
+      document.querySelectorAll(".attr-checkbox").forEach(cb => cb.checked = false);
     });
 
     // --- GAME START LOGIC ---
     setupForm.addEventListener("submit", (e) => {
       e.preventDefault();
 
+      if (!currentCategoryData || !currentCategoryData.items.length) {
+        alert("Selected category data is missing or empty!");
+        return;
+      }
+
+      savePlayerCount(playerCountInput.value);
+      saveCurrentInputNames();
+      gameState.playerNames = getSavedPlayerNames();
       gameState.totalPlayers = parseInt(playerCountInput.value, 10);
       gameState.impostorCount = parseInt(impostorCountSelect.value, 10);
       
-      const selectedCategory = categoriesData[categorySelect.value];
-      gameState.chosenItem = selectedCategory.items[Math.floor(Math.random() * selectedCategory.items.length)];
+      gameState.chosenItem = currentCategoryData.items[Math.floor(Math.random() * currentCategoryData.items.length)];
 
+      // Pick Impostors
       const playerIndices = Array.from({ length: gameState.totalPlayers }, (_, i) => i);
       gameState.impostorIndices = [];
       for (let i = 0; i < gameState.impostorCount; i++) {
@@ -226,11 +374,20 @@
         gameState.impostorIndices.push(playerIndices.splice(randomIndex, 1)[0]);
       }
 
+      // Process Impostor Hints
       gameState.impostorHints = [];
       if (hintsToggle.checked) {
-        const numHints = parseInt(hintCountSelect.value, 10);
-        const shuffledAttrs = [...selectedCategory.attributes].sort(() => 0.5 - Math.random());
-        const chosenAttrs = shuffledAttrs.slice(0, numHints);
+        const requestedHintCount = parseInt(hintCountSelect.value, 10);
+        const checkedAttrs = Array.from(document.querySelectorAll(".attr-checkbox:checked"))
+                                  .map(cb => cb.value);
+
+        if (checkedAttrs.length < requestedHintCount) {
+          alert(`You requested ${requestedHintCount} hint(s), but only selected ${checkedAttrs.length} allowed hint category(ies). Please check more categories or reduce hint count.`);
+          return;
+        }
+
+        const shuffledAttrs = [...checkedAttrs].sort(() => 0.5 - Math.random());
+        const chosenAttrs = shuffledAttrs.slice(0, requestedHintCount);
 
         chosenAttrs.forEach(attr => {
           gameState.impostorHints.push(`${attr}: ${gameState.chosenItem[attr]}`);
@@ -244,7 +401,8 @@
 
     // --- PLAYER REVEAL LOOP ---
     function updateTurnUI() {
-      playerTurnHeader.innerText = `Player ${gameState.currentPlayerIndex + 1}'s Turn`;
+      const currentName = gameState.playerNames[gameState.currentPlayerIndex] || `Player ${gameState.currentPlayerIndex + 1}`;
+      playerTurnHeader.innerText = `${currentName}'s Turn`;
       secretContent.style.display = "none";
       revealBtn.style.display = "inline-block";
       nextPlayerBtn.style.display = "none";
@@ -287,8 +445,9 @@
       impostorsList.innerHTML = "";
 
       gameState.impostorIndices.forEach(idx => {
+        const name = gameState.playerNames[idx] || `Player ${idx + 1}`;
         const li = document.createElement("li");
-        li.innerText = `Player ${idx + 1}`;
+        li.innerText = name;
         impostorsList.appendChild(li);
       });
 
@@ -296,8 +455,23 @@
       revealImpostorsBtn.style.display = "none";
     });
 
-    // Initialize Game Data on Page Load
-    loadGameData();
+    // --- INITIALIZATION ---
+    function init() {
+      const savedCount = getSavedPlayerCount();
+      if (savedCount) {
+        playerCountInput.value = savedCount;
+      }
+
+      populateCategoryDropdown();
+      updateImpostorOptions();
+      updatePlayerNameInputs();
+      
+      if (AVAILABLE_CATEGORIES.length > 0) {
+        loadCategoryData(AVAILABLE_CATEGORIES[0].key);
+      }
+    }
+
+    init();
   </script>
 
 </body>
