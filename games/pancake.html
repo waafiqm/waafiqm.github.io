@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pancake - Waffling On</title>
+</head>
+<body>
+
+  <header>
+    <h1>Pancake</h1>
+    <p><a href="../index.html">&larr; Back to Home</a></p>
+  </header>
+
+  <hr>
+
+  <main>
+    <!-- STEP 1: SETUP FORM -->
+    <section id="setup-screen">
+      <h2>Game Setup</h2>
+      <form id="setup-form">
+        
+        <!-- Player Count -->
+        <div>
+          <label for="player-count"><strong>Number of Players (3+):</strong></label>
+          <input type="number" id="player-count" min="3" value="4" required>
+        </div>
+
+        <br>
+
+        <!-- Impostor Count -->
+        <div>
+          <label for="impostor-count"><strong>Number of Impostors:</strong></label>
+          <select id="impostor-count" required>
+            <!-- Dynamically populated based on player count -->
+          </select>
+        </div>
+
+        <br>
+
+        <!-- Category Select -->
+        <div>
+          <label for="category-select"><strong>Category:</strong></label>
+          <select id="category-select" required>
+            <!-- Dynamically populated from JSON -->
+          </select>
+        </div>
+
+        <br>
+
+        <!-- Impostor Hints Toggle -->
+        <div>
+          <label>
+            <input type="checkbox" id="impostor-hints-toggle">
+            <strong>Give Impostors Hints?</strong>
+          </label>
+        </div>
+
+        <br>
+
+        <!-- Hint Options (Hidden until toggle is checked) -->
+        <div id="hint-options-container" style="display: none;">
+          <label for="hint-count"><strong>Number of Hints for Impostors:</strong></label>
+          <select id="hint-count">
+            <!-- Dynamically populated based on chosen category -->
+          </select>
+        </div>
+
+        <br>
+
+        <button type="submit" id="start-btn" disabled>Loading Data...</button>
+      </form>
+    </section>
+
+    <!-- STEP 2: PLAYER REVEAL SCREEN -->
+    <section id="reveal-screen" style="display: none;">
+      <h2 id="player-turn-header">Player 1's Turn</h2>
+      <p>Pass the phone to this player. Press reveal when ready!</p>
+      
+      <button id="reveal-btn">Reveal Word / Role</button>
+
+      <!-- Secret Content -->
+      <div id="secret-content" style="display: none; border: 1px dashed #000; padding: 10px; margin-top: 10px;">
+        <h3 id="role-title">Role: ???</h3>
+        <p id="secret-info"></p>
+      </div>
+
+      <br><br>
+      <button id="next-player-btn" style="display: none;">Hide & Pass Phone</button>
+    </section>
+
+    <!-- STEP 3: GAME OVER / IMPOSTOR REVEAL -->
+    <section id="gameover-screen" style="display: none;">
+      <h2>All players have seen their roles!</h2>
+      <p>Discuss, give hints, and vote out the impostors in real life.</p>
+
+      <button id="reveal-impostors-btn">Reveal Impostors</button>
+
+      <div id="impostors-reveal-content" style="display: none; border: 1px solid #000; padding: 10px; margin-top: 10px;">
+        <h3>The Secret Word Was: <span id="final-secret-word"></span></h3>
+        <p><strong>The Impostor(s):</strong></p>
+        <ul id="impostors-list"></ul>
+      </div>
+
+      <br><br>
+      <button onclick="window.location.reload()">Play Again</button>
+    </section>
+  </main>
+
+  <script>
+    // --- GLOBAL DATA & GAME STATE ---
+    let categoriesData = {};
+
+    let gameState = {
+      totalPlayers: 0,
+      impostorCount: 0,
+      impostorIndices: [],
+      chosenItem: null,
+      currentPlayerIndex: 0,
+      impostorHints: []
+    };
+
+    // --- DOM ELEMENTS ---
+    const playerCountInput = document.getElementById("player-count");
+    const impostorCountSelect = document.getElementById("impostor-count");
+    const categorySelect = document.getElementById("category-select");
+    const hintsToggle = document.getElementById("impostor-hints-toggle");
+    const hintOptionsContainer = document.getElementById("hint-options-container");
+    const hintCountSelect = document.getElementById("hint-count");
+    const setupForm = document.getElementById("setup-form");
+    const startBtn = document.getElementById("start-btn");
+
+    const setupScreen = document.getElementById("setup-screen");
+    const revealScreen = document.getElementById("reveal-screen");
+    const gameOverScreen = document.getElementById("gameover-screen");
+
+    const playerTurnHeader = document.getElementById("player-turn-header");
+    const revealBtn = document.getElementById("reveal-btn");
+    const secretContent = document.getElementById("secret-content");
+    const roleTitle = document.getElementById("role-title");
+    const secretInfo = document.getElementById("secret-info");
+    const nextPlayerBtn = document.getElementById("next-player-btn");
+
+    const revealImpostorsBtn = document.getElementById("reveal-impostors-btn");
+    const impostorsRevealContent = document.getElementById("impostors-reveal-content");
+    const finalSecretWord = document.getElementById("final-secret-word");
+    const impostorsList = document.getElementById("impostors-list");
+
+    // --- FETCH DATA FROM EXTERNAL JSON ---
+    async function loadGameData() {
+      try {
+        const response = await fetch('./pancake-data.json');
+        if (!response.ok) throw new Error("Failed to load JSON");
+        
+        categoriesData = await response.json();
+        
+        populateCategoryDropdown();
+        updateImpostorOptions();
+        updateHintOptions();
+
+        startBtn.innerText = "Start Game";
+        startBtn.disabled = false;
+      } catch (error) {
+        console.error(error);
+        alert("Error loading pancake-data.json! Make sure the file exists in the same folder and you're running through a web server.");
+      }
+    }
+
+    function populateCategoryDropdown() {
+      categorySelect.innerHTML = "";
+      Object.keys(categoriesData).forEach(key => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.innerText = categoriesData[key].displayName || key;
+        categorySelect.appendChild(option);
+      });
+    }
+
+    function updateImpostorOptions() {
+      const players = parseInt(playerCountInput.value, 10) || 3;
+      const maxImpostors = Math.floor(players / 2);
+      impostorCountSelect.innerHTML = "";
+      for (let i = 1; i <= maxImpostors; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.innerText = i;
+        impostorCountSelect.appendChild(option);
+      }
+    }
+
+    function updateHintOptions() {
+      const selectedCatKey = categorySelect.value;
+      if (!selectedCatKey || !categoriesData[selectedCatKey]) return;
+
+      const maxAttributes = categoriesData[selectedCatKey].attributes.length;
+      hintCountSelect.innerHTML = "";
+      for (let i = 1; i <= maxAttributes; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.innerText = `${i} Hint${i > 1 ? 's' : ''}`;
+        hintCountSelect.appendChild(option);
+      }
+    }
+
+    // --- EVENT LISTENERS ---
+    playerCountInput.addEventListener("input", updateImpostorOptions);
+    categorySelect.addEventListener("change", updateHintOptions);
+    hintsToggle.addEventListener("change", (e) => {
+      hintOptionsContainer.style.display = e.target.checked ? "block" : "none";
+    });
+
+    // --- GAME START LOGIC ---
+    setupForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      gameState.totalPlayers = parseInt(playerCountInput.value, 10);
+      gameState.impostorCount = parseInt(impostorCountSelect.value, 10);
+      
+      const selectedCategory = categoriesData[categorySelect.value];
+      gameState.chosenItem = selectedCategory.items[Math.floor(Math.random() * selectedCategory.items.length)];
+
+      const playerIndices = Array.from({ length: gameState.totalPlayers }, (_, i) => i);
+      gameState.impostorIndices = [];
+      for (let i = 0; i < gameState.impostorCount; i++) {
+        const randomIndex = Math.floor(Math.random() * playerIndices.length);
+        gameState.impostorIndices.push(playerIndices.splice(randomIndex, 1)[0]);
+      }
+
+      gameState.impostorHints = [];
+      if (hintsToggle.checked) {
+        const numHints = parseInt(hintCountSelect.value, 10);
+        const shuffledAttrs = [...selectedCategory.attributes].sort(() => 0.5 - Math.random());
+        const chosenAttrs = shuffledAttrs.slice(0, numHints);
+
+        chosenAttrs.forEach(attr => {
+          gameState.impostorHints.push(`${attr}: ${gameState.chosenItem[attr]}`);
+        });
+      }
+
+      setupScreen.style.display = "none";
+      revealScreen.style.display = "block";
+      updateTurnUI();
+    });
+
+    // --- PLAYER REVEAL LOOP ---
+    function updateTurnUI() {
+      playerTurnHeader.innerText = `Player ${gameState.currentPlayerIndex + 1}'s Turn`;
+      secretContent.style.display = "none";
+      revealBtn.style.display = "inline-block";
+      nextPlayerBtn.style.display = "none";
+    }
+
+    revealBtn.addEventListener("click", () => {
+      const isImpostor = gameState.impostorIndices.includes(gameState.currentPlayerIndex);
+
+      if (isImpostor) {
+        roleTitle.innerText = "You are the IMPOSTOR!";
+        if (gameState.impostorHints.length > 0) {
+          secretInfo.innerHTML = "<strong>Your Hints:</strong><br>" + gameState.impostorHints.join("<br>");
+        } else {
+          secretInfo.innerText = "You get no word and no hints! Blend in!";
+        }
+      } else {
+        roleTitle.innerText = "You are INNOCENT";
+        secretInfo.innerText = `The secret item is: ${gameState.chosenItem.name}`;
+      }
+
+      secretContent.style.display = "block";
+      revealBtn.style.display = "none";
+      nextPlayerBtn.style.display = "inline-block";
+    });
+
+    nextPlayerBtn.addEventListener("click", () => {
+      gameState.currentPlayerIndex++;
+
+      if (gameState.currentPlayerIndex < gameState.totalPlayers) {
+        updateTurnUI();
+      } else {
+        revealScreen.style.display = "none";
+        gameOverScreen.style.display = "block";
+      }
+    });
+
+    // --- GAME OVER / REVEAL ---
+    revealImpostorsBtn.addEventListener("click", () => {
+      finalSecretWord.innerText = gameState.chosenItem.name;
+      impostorsList.innerHTML = "";
+
+      gameState.impostorIndices.forEach(idx => {
+        const li = document.createElement("li");
+        li.innerText = `Player ${idx + 1}`;
+        impostorsList.appendChild(li);
+      });
+
+      impostorsRevealContent.style.display = "block";
+      revealImpostorsBtn.style.display = "none";
+    });
+
+    // Initialize Game Data on Page Load
+    loadGameData();
+  </script>
+
+</body>
+</html>
