@@ -264,7 +264,7 @@
       startBtn.innerText = "Loading Category...";
 
       try {
-        const response = await fetch(`./data/pancake/${categoryKey}.json`);
+        const response = await fetch(`../data/${categoryKey}.json`);
         if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
         
         currentCategoryData = await response.json();
@@ -274,7 +274,7 @@
         startBtn.disabled = false;
       } catch (error) {
         console.error(error);
-        alert(`Error loading data for "${categoryKey}"! Make sure ./data/pancake/${categoryKey}.json exists.`);
+        alert(`Error loading data for "${categoryKey}"! Make sure ../data/${categoryKey}.json exists.`);
       }
     }
 
