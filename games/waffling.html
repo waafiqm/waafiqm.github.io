@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waffling - Speed Charades</title>
+</head>
+<body>
+
+  <header>
+    <h1>waffling</h1>
+    <p><a href="../index.html">&larr; Back to Home</a></p>
+  </header>
+
+  <hr>
+
+  <main>
+    <!-- STEP 1: SETUP FORM -->
+    <section id="setup-screen">
+      <h2>Game Setup</h2>
+      <form id="setup-form">
+        
+        <!-- Category Select -->
+        <div>
+          <label for="category-select"><strong>Category:</strong></label>
+          <select id="category-select" required>
+            <!-- Populated dynamically from AVAILABLE_CATEGORIES array -->
+          </select>
+        </div>
+
+        <br>
+
+        <!-- Time Limit Input -->
+        <div>
+          <label for="time-limit"><strong>Time Limit (Seconds):</strong></label>
+          <input type="number" id="time-limit" min="5" value="60" required>
+        </div>
+
+        <br>
+
+        <button type="submit" id="start-btn" disabled>Loading Data...</button>
+      </form>
+    </section>
+
+    <!-- STEP 2: GET READY COUNTDOWN SCREEN -->
+    <section id="countdown-screen" style="display: none; text-align: center;">
+      <h2>Place phone on your forehead!</h2>
+      <p>Game starting in:</p>
+      <h1 id="countdown-timer" style="font-size: 80px;">5</h1>
+    </section>
+
+    <!-- STEP 3: ACTIVE GAME SCREEN -->
+    <section id="game-screen" style="display: none;">
+      <!-- Active Game Header Info -->
+      <div style="display: flex; justify-content: space-between; font-weight: bold;">
+        <div>Time Remaining: <span id="game-timer">60</span>s</div>
+        <div>Score: <span id="game-score">0</span></div>
+      </div>
+
+      <hr>
+
+      <!-- Split Touch Screen Controls with Word Overlay -->
+      <div style="position: relative; width: 100%; height: 350px; border: 1px solid #000; margin-top: 15px;">
+        
+        <!-- Interactive Buttons Container -->
+        <div style="display: flex; width: 100%; height: 100%;">
+          <!-- Pass Button (Left Half) -->
+          <button id="pass-btn" type="button" style="width: 50%; height: 100%; font-size: 20px; cursor: pointer;">
+            PASS
+          </button>
+          
+          <!-- Correct Button (Right Half) -->
+          <button id="correct-btn" type="button" style="width: 50%; height: 100%; font-size: 20px; cursor: pointer;">
+            CORRECT (+1)
+          </button>
+        </div>
+
+        <!-- Word Overlay (Centered above both buttons) -->
+        <div id="word-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border: 2px solid #000; font-size: 32px; font-weight: bold; pointer-events: none; text-align: center;">
+          ---
+        </div>
+
+      </div>
+    </section>
+
+    <!-- STEP 4: GAME OVER SCREEN -->
+    <section id="gameover-screen" style="display: none; text-align: center;">
+      <h2>Time's Up!</h2>
+      <p>Final Score:</p>
+      <h1 id="final-score" style="font-size: 60px;">0</h1>
+
+      <br>
+      <button type="button" onclick="window.location.reload()">Play Again</button>
+    </section>
+  </main>
+
+  <script>
+    // --- CATEGORIES CONFIGURATION ---
+    const AVAILABLE_CATEGORIES = [
+      { key: "nba", name: "NBA Players" },
+      { key: "movies", name: "Movies" },
+      { key: "pokemon", name: "Pokemon" },
+      { key: "countries", name: "Countries" }
+    ];
+
+    // --- GLOBAL DATA & GAME STATE ---
+    let currentCategoryData = null;
+    let wordDeck = [];
+    let currentWordIndex = 0;
+
+    let gameState = {
+      score: 0,
+      timeRemaining: 60,
+      timerInterval: null
+    };
+
+    // --- DOM ELEMENTS ---
+    const categorySelect = document.getElementById("category-select");
+    const timeLimitInput = document.getElementById("time-limit");
+    const setupForm = document.getElementById("setup-form");
+    const startBtn = document.getElementById("start-btn");
+
+    const setupScreen = document.getElementById("setup-screen");
+    const countdownScreen = document.getElementById("countdown-screen");
+    const countdownTimer = document.getElementById("countdown-timer");
+
+    const gameScreen = document.getElementById("game-screen");
+    const gameTimer = document.getElementById("game-timer");
+    const gameScore = document.getElementById("game-score");
+    const wordOverlay = document.getElementById("word-overlay");
+    const passBtn = document.getElementById("pass-btn");
+    const correctBtn = document.getElementById("correct-btn");
+
+    const gameoverScreen = document.getElementById("gameover-screen");
+    const finalScore = document.getElementById("final-score");
+
+    // --- POPULATE CATEGORY DROPDOWN ---
+    function populateCategoryDropdown() {
+      categorySelect.innerHTML = "";
+      AVAILABLE_CATEGORIES.forEach(cat => {
+        const option = document.createElement("option");
+        option.value = cat.key;
+        option.innerText = cat.name;
+        categorySelect.appendChild(option);
+      });
+    }
+
+    // --- FETCH SPECIFIC CATEGORY JSON ---
+    async function loadCategoryData(categoryKey) {
+      startBtn.disabled = true;
+      startBtn.innerText = "Loading Category...";
+
+      try {
+        const response = await fetch(`../data/${categoryKey}.json`);
+        if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
+        
+        currentCategoryData = await response.json();
+
+        startBtn.innerText = "Start Game";
+        startBtn.disabled = false;
+      } catch (error) {
+        console.error(error);
+        alert(`Error loading data for "${categoryKey}"! Make sure ../data/${categoryKey}.json exists.`);
+      }
+    }
+
+    // --- EVENT LISTENERS ---
+    categorySelect.addEventListener("change", (e) => {
+      loadCategoryData(e.target.value);
+    });
+
+    setupForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      if (!currentCategoryData || !currentCategoryData.items.length) {
+        alert("Selected category data is missing or empty!");
+        return;
+      }
+
+      gameState.timeRemaining = parseInt(timeLimitInput.value, 10) || 60;
+      
+      // Shuffle names from category items into wordDeck
+      wordDeck = currentCategoryData.items.map(item => item.name);
+      wordDeck.sort(() => Math.random() - 0.5);
+      currentWordIndex = 0;
+
+      setupScreen.style.display = "none";
+      countdownScreen.style.display = "block";
+      startGetReadyCountdown();
+    });
+
+    // --- COUNTDOWN (5 SECONDS) ---
+    function startGetReadyCountdown() {
+      let count = 5;
+      countdownTimer.innerText = count;
+
+      const countdownInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownTimer.innerText = count;
+        } else {
+          clearInterval(countdownInterval);
+          countdownScreen.style.display = "none";
+          gameScreen.style.display = "block";
+          startGame();
+        }
+      }, 1000);
+    }
+
+    // --- START GAME LOOP & TIMER ---
+    function startGame() {
+      gameState.score = 0;
+      gameScore.innerText = gameState.score;
+      gameTimer.innerText = gameState.timeRemaining;
+
+      displayNextWord();
+
+      gameState.timerInterval = setInterval(() => {
+        gameState.timeRemaining--;
+        gameTimer.innerText = gameState.timeRemaining;
+
+        if (gameState.timeRemaining <= 0) {
+          endGame();
+        }
+      }, 1000);
+    }
+
+    // --- GAME ACTIONS ---
+    function displayNextWord() {
+      if (currentWordIndex >= wordDeck.length) {
+        // Reshuffle deck if all words were cycled through
+        wordDeck.sort(() => Math.random() - 0.5);
+        currentWordIndex = 0;
+      }
+
+      wordOverlay.innerText = wordDeck[currentWordIndex];
+    }
+
+    passBtn.addEventListener("click", () => {
+      currentWordIndex++;
+      displayNextWord();
+    });
+
+    correctBtn.addEventListener("click", () => {
+      gameState.score++;
+      gameScore.innerText = gameState.score;
+      currentWordIndex++;
+      displayNextWord();
+    });
+
+    // --- END GAME ---
+    function endGame() {
+      clearInterval(gameState.timerInterval);
+      gameScreen.style.display = "none";
+      gameoverScreen.style.display = "block";
+      finalScore.innerText = gameState.score;
+    }
+
+    // --- INITIALIZATION ---
+    function init() {
+      populateCategoryDropdown();
+      if (AVAILABLE_CATEGORIES.length > 0) {
+        loadCategoryData(AVAILABLE_CATEGORIES[0].key);
+      }
+    }
+
+    init();
+  </script>
+
+</body>
+</html>
