@@ -62,21 +62,17 @@
       <!-- Split Touch Screen Controls with Word Overlay -->
       <div style="position: relative; width: 100%; height: 350px; border: 1px solid #000; margin-top: 15px;">
         
-        <!-- Interactive Buttons Container -->
+        <!-- Interactive Color Buttons Container -->
         <div style="display: flex; width: 100%; height: 100%;">
-          <!-- Pass Button (Left Half) -->
-          <button id="pass-btn" type="button" style="width: 50%; height: 100%; font-size: 20px; cursor: pointer;">
-            PASS
-          </button>
+          <!-- Pass Button (Left Half - Red) -->
+          <button id="pass-btn" type="button" aria-label="Pass" style="width: 50%; height: 100vh; background-color: #e74c3c; border: none; cursor: pointer;"></button>
           
-          <!-- Correct Button (Right Half) -->
-          <button id="correct-btn" type="button" style="width: 50%; height: 100%; font-size: 20px; cursor: pointer;">
-            CORRECT (+1)
-          </button>
+          <!-- Correct Button (Right Half - Green) -->
+          <button id="correct-btn" type="button" aria-label="Correct" style="width: 50%; height: 100vh; background-color: #2ecc71; border: none; cursor: pointer;"></button>
         </div>
 
-        <!-- Word Overlay (Centered above both buttons) -->
-        <div id="word-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border: 2px solid #000; font-size: 32px; font-weight: bold; pointer-events: none; text-align: center;">
+        <!-- Word Overlay (Transparent background centered above both buttons) -->
+        <div id="word-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; font-weight: bold; color: #000; text-shadow: 0 0 5px #fff; pointer-events: none; text-align: center; width: 90%;">
           ---
         </div>
 
