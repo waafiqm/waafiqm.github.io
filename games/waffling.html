@@ -7,12 +7,11 @@
 </head>
 <body>
 
-  <header>
+  <header id="page-header">
     <h1>waffling</h1>
     <p><a href="../index.html">&larr; Back to Home</a></p>
+    <hr>
   </header>
-
-  <hr>
 
   <main>
     <!-- STEP 1: SETUP FORM -->
@@ -50,29 +49,27 @@
     </section>
 
     <!-- STEP 3: ACTIVE GAME SCREEN -->
-    <section id="game-screen" style="display: none;">
+    <section id="game-screen" style="display: none; height: 100vh; box-sizing: border-box; overflow: hidden;">
       <!-- Active Game Header Info -->
-      <div style="display: flex; justify-content: space-between; font-weight: bold;">
+      <div id="game-hud" style="display: flex; justify-content: space-between; font-weight: bold; font-size: 20px; padding: 10px 0;">
         <div>Time Remaining: <span id="game-timer">60</span>s</div>
         <div>Score: <span id="game-score">0</span></div>
       </div>
 
-      <hr>
-
       <!-- Split Touch Screen Controls with Word Overlay -->
-      <div style="position: relative; width: 100%; height: 350px; border: 1px solid #000; margin-top: 15px;">
+      <div style="position: relative; width: 100%; height: calc(100vh - 55px); margin: 0;">
         
         <!-- Interactive Color Buttons Container -->
         <div style="display: flex; width: 100%; height: 100%;">
           <!-- Pass Button (Left Half - Red) -->
-          <button id="pass-btn" type="button" aria-label="Pass" style="width: 50%; height: 100vh; background-color: #e74c3c; border: none; cursor: pointer;"></button>
+          <button id="pass-btn" type="button" aria-label="Pass" style="width: 50%; height: 100%; background-color: #e74c3c; border: none; cursor: pointer;"></button>
           
           <!-- Correct Button (Right Half - Green) -->
-          <button id="correct-btn" type="button" aria-label="Correct" style="width: 50%; height: 100vh; background-color: #2ecc71; border: none; cursor: pointer;"></button>
+          <button id="correct-btn" type="button" aria-label="Correct" style="width: 50%; height: 100%; background-color: #2ecc71; border: none; cursor: pointer;"></button>
         </div>
 
         <!-- Word Overlay (Transparent background centered above both buttons) -->
-        <div id="word-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; font-weight: bold; color: #000; text-shadow: 0 0 5px #fff; pointer-events: none; text-align: center; width: 90%;">
+        <div id="word-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; font-weight: bold; color: #000; text-shadow: 0 0 6px #fff, 0 0 6px #fff; pointer-events: none; text-align: center; width: 90%; word-wrap: break-word;">
           ---
         </div>
 
@@ -111,6 +108,7 @@
     };
 
     // --- DOM ELEMENTS ---
+    const pageHeader = document.getElementById("page-header");
     const categorySelect = document.getElementById("category-select");
     const timeLimitInput = document.getElementById("time-limit");
     const setupForm = document.getElementById("setup-form");
@@ -197,6 +195,10 @@
         } else {
           clearInterval(countdownInterval);
           countdownScreen.style.display = "none";
+          
+          // Hide top header during gameplay
+          pageHeader.style.display = "none";
+          
           gameScreen.style.display = "block";
           startGame();
         }
@@ -248,6 +250,10 @@
     function endGame() {
       clearInterval(gameState.timerInterval);
       gameScreen.style.display = "none";
+      
+      // Restore header on game over screen
+      pageHeader.style.display = "block";
+      
       gameoverScreen.style.display = "block";
       finalScore.innerText = gameState.score;
     }
