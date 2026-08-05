@@ -81,202 +81,193 @@
   </main>
 
   <script>
-        // --- CATEGORIES CONFIGURATION ---
-        const AVAILABLE_CATEGORIES = [
-            { key: "nba", name: "NBA Players" },
-            { key: "movies", name: "Movies" },
-            { key: "pokemon", name: "Pokemon" },
-            { key: "countries", name: "Countries" }
-        ];
+    // --- CATEGORIES CONFIGURATION ---
+    const AVAILABLE_CATEGORIES = [
+      { key: "nba", name: "NBA Players" },
+      { key: "movies", name: "Movies" },
+      { key: "pokemon", name: "Pokemon" },
+      { key: "countries", name: "Countries" }
+    ];
 
-        // --- GLOBAL DATA & GAME STATE ---
-        let currentCategoryData = null;
-        let wordDeck = [];
-        let currentWordIndex = 0;
+    // --- GLOBAL DATA & GAME STATE ---
+    let currentCategoryData = null;
+    let wordDeck = [];
+    let currentWordIndex = 0;
 
-        let gameState = {
-            score: 0,
-            timeRemaining: 60,
-            timerInterval: null
-        };
+    let gameState = {
+      score: 0,
+      timeRemaining: 60,
+      timerInterval: null
+    };
 
-        // --- DOM ELEMENTS ---
-        const pageHeader = document.getElementById("page-header");
-        const categorySelect = document.getElementById("category-select");
-        const timeLimitInput = document.getElementById("time-limit");
-        const setupForm = document.getElementById("setup-form");
-        const startBtn = document.getElementById("start-btn");
+    // --- DOM ELEMENTS ---
+    const pageHeader = document.getElementById("page-header");
+    const categorySelect = document.getElementById("category-select");
+    const timeLimitInput = document.getElementById("time-limit");
+    const setupForm = document.getElementById("setup-form");
+    const startBtn = document.getElementById("start-btn");
 
-        const setupScreen = document.getElementById("setup-screen");
-        const gameScreen = document.getElementById("game-screen");
-        const gameTimer = document.getElementById("game-timer");
-        const gameScore = document.getElementById("game-score");
-        const wordOverlay = document.getElementById("word-overlay");
-        const passBtn = document.getElementById("pass-btn");
-        const correctBtn = document.getElementById("correct-btn");
+    const setupScreen = document.getElementById("setup-screen");
+    const gameScreen = document.getElementById("game-screen");
+    const gameTimer = document.getElementById("game-timer");
+    const gameScore = document.getElementById("game-score");
+    const wordOverlay = document.getElementById("word-overlay");
+    const passBtn = document.getElementById("pass-btn");
+    const correctBtn = document.getElementById("correct-btn");
 
-        const gameoverScreen = document.getElementById("gameover-screen");
-        const finalScore = document.getElementById("final-score");
+    const gameoverScreen = document.getElementById("gameover-screen");
+    const finalScore = document.getElementById("final-score");
 
-        // --- POPULATE CATEGORY DROPDOWN ---
-        function populateCategoryDropdown() {
-            categorySelect.innerHTML = "";
-            AVAILABLE_CATEGORIES.forEach(cat => {
-            const option = document.createElement("option");
-            option.value = cat.key;
-            option.innerText = cat.name;
-            categorySelect.appendChild(option);
-            });
+    // --- POPULATE CATEGORY DROPDOWN ---
+    function populateCategoryDropdown() {
+      categorySelect.innerHTML = "";
+      AVAILABLE_CATEGORIES.forEach(cat => {
+        const option = document.createElement("option");
+        option.value = cat.key;
+        option.innerText = cat.name;
+        categorySelect.appendChild(option);
+      });
+    }
+
+    // --- FETCH SPECIFIC CATEGORY JSON ---
+    async function loadCategoryData(categoryKey) {
+      startBtn.disabled = true;
+      startBtn.innerText = "Loading Category...";
+
+      try {
+        const response = await fetch(`../data/${categoryKey}.json`);
+        if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
+        
+        currentCategoryData = await response.json();
+
+        startBtn.innerText = "Start Game";
+        startBtn.disabled = false;
+      } catch (error) {
+        console.error(error);
+        alert(`Error loading data for "${categoryKey}"! Make sure ../data/${categoryKey}.json exists.`);
+      }
+    }
+
+    // --- EVENT LISTENERS ---
+    categorySelect.addEventListener("change", (e) => {
+      loadCategoryData(e.target.value);
+    });
+
+    setupForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      if (!currentCategoryData || !currentCategoryData.items.length) {
+        alert("Selected category data is missing or empty!");
+        return;
+      }
+
+      gameState.timeRemaining = parseInt(timeLimitInput.value, 10) || 60;
+      
+      // Shuffle names from category items into wordDeck
+      wordDeck = currentCategoryData.items.map(item => item.name);
+      wordDeck.sort(() => Math.random() - 0.5);
+      currentWordIndex = 0;
+
+      // Hide Setup & Header, Show Game Layout immediately
+      setupScreen.style.display = "none";
+      pageHeader.style.display = "none";
+      gameScreen.style.display = "block";
+
+      startGetReadyCountdown();
+    });
+
+    // --- COUNTDOWN (5 SECONDS) ---
+    function startGetReadyCountdown() {
+      let count = 5;
+      
+      // Disable buttons during countdown
+      passBtn.disabled = true;
+      correctBtn.disabled = true;
+
+      gameTimer.innerText = gameState.timeRemaining;
+      gameScore.innerText = 0;
+      wordOverlay.innerHTML = `<div style="font-size: 20px;">Place phone on forehead!</div><div style="font-size: 70px; margin-top: 10px;">${count}</div>`;
+
+      const countdownInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          wordOverlay.innerHTML = `<div style="font-size: 20px;">Place phone on forehead!</div><div style="font-size: 70px; margin-top: 10px;">${count}</div>`;
+        } else {
+          clearInterval(countdownInterval);
+          startGame();
         }
+      }, 1000);
+    }
 
-        // --- FETCH SPECIFIC CATEGORY JSON ---
-        async function loadCategoryData(categoryKey) {
-            startBtn.disabled = true;
-            startBtn.innerText = "Loading Category...";
+    // --- START GAME LOOP & TIMER ---
+    function startGame() {
+      gameState.score = 0;
+      gameScore.innerText = gameState.score;
+      gameTimer.innerText = gameState.timeRemaining;
 
-            try {
-            const response = await fetch(`../data/${categoryKey}.json`);
-            if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
-            
-            currentCategoryData = await response.json();
+      // Enable interactive buttons
+      passBtn.disabled = false;
+      correctBtn.disabled = false;
 
-            startBtn.innerText = "Start Game";
-            startBtn.disabled = false;
-            } catch (error) {
-            console.error(error);
-            alert(`Error loading data for "${categoryKey}"! Make sure ../data/${categoryKey}.json exists.`);
-            }
+      displayNextWord();
+
+      gameState.timerInterval = setInterval(() => {
+        gameState.timeRemaining--;
+        gameTimer.innerText = gameState.timeRemaining;
+
+        if (gameState.timeRemaining <= 0) {
+          endGame();
         }
+      }, 1000);
+    }
 
-        // --- EVENT LISTENERS ---
-        categorySelect.addEventListener("change", (e) => {
-            loadCategoryData(e.target.value);
-        });
+    // --- GAME ACTIONS ---
+    function displayNextWord() {
+      if (currentWordIndex >= wordDeck.length) {
+        // Reshuffle deck if all words were cycled through
+        wordDeck.sort(() => Math.random() - 0.5);
+        currentWordIndex = 0;
+      }
 
-        setupForm.addEventListener("submit", (e) => {
-            e.preventDefault();
+      wordOverlay.innerText = wordDeck[currentWordIndex];
+    }
 
-            if (!currentCategoryData || !currentCategoryData.items.length) {
-            alert("Selected category data is missing or empty!");
-            return;
-            }
+    passBtn.addEventListener("click", () => {
+      if (passBtn.disabled) return;
+      currentWordIndex++;
+      displayNextWord();
+    });
 
-            gameState.timeRemaining = parseInt(timeLimitInput.value, 10) || 60;
-            
-            // Shuffle names from category items into wordDeck
-            wordDeck = currentCategoryData.items.map(item => item.name);
-            wordDeck.sort(() => Math.random() - 0.5);
-            currentWordIndex = 0;
+    correctBtn.addEventListener("click", () => {
+      if (correctBtn.disabled) return;
+      gameState.score++;
+      gameScore.innerText = gameState.score;
+      currentWordIndex++;
+      displayNextWord();
+    });
 
-            // Hide Setup & Header, Show Game Layout immediately
-            setupScreen.style.display = "none";
-            pageHeader.style.display = "none";
-            gameScreen.style.display = "block";
+    // --- END GAME ---
+    function endGame() {
+      clearInterval(gameState.timerInterval);
+      gameScreen.style.display = "none";
+      
+      // Restore header on game over screen
+      pageHeader.style.display = "block";
+      
+      gameoverScreen.style.display = "block";
+      finalScore.innerText = gameState.score;
+    }
 
-            // Auto-scroll to the bottom of the page instantly
-            window.scrollTo({
-            top: document.body.scrollHeight,
-            behavior: "auto"
-            });
+    // --- INITIALIZATION ---
+    function init() {
+      populateCategoryDropdown();
+      if (AVAILABLE_CATEGORIES.length > 0) {
+        loadCategoryData(AVAILABLE_CATEGORIES[0].key);
+      }
+    }
 
-            startGetReadyCountdown();
-        });
-
-        // --- COUNTDOWN (5 SECONDS) ---
-        function startGetReadyCountdown() {
-            let count = 5;
-            
-            // Disable buttons during countdown
-            passBtn.disabled = true;
-            correctBtn.disabled = true;
-
-            gameTimer.innerText = gameState.timeRemaining;
-            gameScore.innerText = 0;
-            wordOverlay.innerHTML = `<div style="font-size: 20px;">Place phone on forehead!</div><div style="font-size: 70px; margin-top: 10px;">${count}</div>`;
-
-            const countdownInterval = setInterval(() => {
-            count--;
-            if (count > 0) {
-                wordOverlay.innerHTML = `<div style="font-size: 20px;">Place phone on forehead!</div><div style="font-size: 70px; margin-top: 10px;">${count}</div>`;
-            } else {
-                clearInterval(countdownInterval);
-                startGame();
-            }
-            }, 1000);
-        }
-
-        // --- START GAME LOOP & TIMER ---
-        function startGame() {
-            gameState.score = 0;
-            gameScore.innerText = gameState.score;
-            gameTimer.innerText = gameState.timeRemaining;
-
-            // Enable interactive buttons
-            passBtn.disabled = false;
-            correctBtn.disabled = false;
-
-            displayNextWord();
-
-            gameState.timerInterval = setInterval(() => {
-            gameState.timeRemaining--;
-            gameTimer.innerText = gameState.timeRemaining;
-
-            if (gameState.timeRemaining <= 0) {
-                endGame();
-            }
-            }, 1000);
-        }
-
-        // --- GAME ACTIONS ---
-        function displayNextWord() {
-            if (currentWordIndex >= wordDeck.length) {
-            // Reshuffle deck if all words were cycled through
-            wordDeck.sort(() => Math.random() - 0.5);
-            currentWordIndex = 0;
-            }
-
-            wordOverlay.innerText = wordDeck[currentWordIndex];
-        }
-
-        passBtn.addEventListener("click", () => {
-            if (passBtn.disabled) return;
-            currentWordIndex++;
-            displayNextWord();
-        });
-
-        correctBtn.addEventListener("click", () => {
-            if (correctBtn.disabled) return;
-            gameState.score++;
-            gameScore.innerText = gameState.score;
-            currentWordIndex++;
-            displayNextWord();
-        });
-
-        // --- END GAME ---
-        function endGame() {
-            clearInterval(gameState.timerInterval);
-            gameScreen.style.display = "none";
-            
-            // Restore header on game over screen
-            pageHeader.style.display = "block";
-            
-            gameoverScreen.style.display = "block";
-            finalScore.innerText = gameState.score;
-
-            // Scroll back up to top for game over screen
-            window.scrollTo(0, 0);
-        }
-
-        // --- INITIALIZATION ---
-        function init() {
-            populateCategoryDropdown();
-            if (AVAILABLE_CATEGORIES.length > 0) {
-            loadCategoryData(AVAILABLE_CATEGORIES[0].key);
-            }
-        }
-
-        init();
-    </script>
+    init();
+  </script>
 
 </body>
 </html>
