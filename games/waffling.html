@@ -41,14 +41,7 @@
       </form>
     </section>
 
-    <!-- STEP 2: GET READY COUNTDOWN SCREEN -->
-    <section id="countdown-screen" style="display: none; text-align: center;">
-      <h2>Place phone on your forehead!</h2>
-      <p>Game starting in:</p>
-      <h1 id="countdown-timer" style="font-size: 80px;">5</h1>
-    </section>
-
-    <!-- STEP 3: ACTIVE GAME SCREEN -->
+    <!-- STEP 2 & 3: GAME CONTAINER (Used for both Countdown and Active Gameplay) -->
     <section id="game-screen" style="display: none; height: 100vh; box-sizing: border-box; overflow: hidden;">
       <!-- Active Game Header Info -->
       <div id="game-hud" style="display: flex; justify-content: space-between; font-weight: bold; font-size: 20px; padding: 10px 0;">
@@ -56,19 +49,19 @@
         <div>Score: <span id="game-score">0</span></div>
       </div>
 
-      <!-- Split Touch Screen Controls with Word Overlay -->
+      <!-- Split Touch Screen Controls with Central Overlay -->
       <div style="position: relative; width: 100%; height: calc(100vh - 55px); margin: 0;">
         
         <!-- Interactive Color Buttons Container -->
         <div style="display: flex; width: 100%; height: 100%;">
           <!-- Pass Button (Left Half - Red) -->
-          <button id="pass-btn" type="button" aria-label="Pass" style="width: 50%; height: 100%; background-color: #e74c3c; border: none; cursor: pointer;"></button>
+          <button id="pass-btn" type="button" aria-label="Pass" style="width: 50%; height: 100%; background-color: #e74c3c; border: none; cursor: pointer;" disabled></button>
           
           <!-- Correct Button (Right Half - Green) -->
-          <button id="correct-btn" type="button" aria-label="Correct" style="width: 50%; height: 100%; background-color: #2ecc71; border: none; cursor: pointer;"></button>
+          <button id="correct-btn" type="button" aria-label="Correct" style="width: 50%; height: 100%; background-color: #2ecc71; border: none; cursor: pointer;" disabled></button>
         </div>
 
-        <!-- Word Overlay (Transparent background centered above both buttons) -->
+        <!-- Center Overlay (Used for both Countdown prompt and active words) -->
         <div id="word-overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; font-weight: bold; color: #000; text-shadow: 0 0 6px #fff, 0 0 6px #fff; pointer-events: none; text-align: center; width: 90%; word-wrap: break-word;">
           ---
         </div>
@@ -88,186 +81,202 @@
   </main>
 
   <script>
-    // --- CATEGORIES CONFIGURATION ---
-    const AVAILABLE_CATEGORIES = [
-      { key: "nba", name: "NBA Players" },
-      { key: "movies", name: "Movies" },
-      { key: "pokemon", name: "Pokemon" },
-      { key: "countries", name: "Countries" }
-    ];
+        // --- CATEGORIES CONFIGURATION ---
+        const AVAILABLE_CATEGORIES = [
+            { key: "nba", name: "NBA Players" },
+            { key: "movies", name: "Movies" },
+            { key: "pokemon", name: "Pokemon" },
+            { key: "countries", name: "Countries" }
+        ];
 
-    // --- GLOBAL DATA & GAME STATE ---
-    let currentCategoryData = null;
-    let wordDeck = [];
-    let currentWordIndex = 0;
+        // --- GLOBAL DATA & GAME STATE ---
+        let currentCategoryData = null;
+        let wordDeck = [];
+        let currentWordIndex = 0;
 
-    let gameState = {
-      score: 0,
-      timeRemaining: 60,
-      timerInterval: null
-    };
+        let gameState = {
+            score: 0,
+            timeRemaining: 60,
+            timerInterval: null
+        };
 
-    // --- DOM ELEMENTS ---
-    const pageHeader = document.getElementById("page-header");
-    const categorySelect = document.getElementById("category-select");
-    const timeLimitInput = document.getElementById("time-limit");
-    const setupForm = document.getElementById("setup-form");
-    const startBtn = document.getElementById("start-btn");
+        // --- DOM ELEMENTS ---
+        const pageHeader = document.getElementById("page-header");
+        const categorySelect = document.getElementById("category-select");
+        const timeLimitInput = document.getElementById("time-limit");
+        const setupForm = document.getElementById("setup-form");
+        const startBtn = document.getElementById("start-btn");
 
-    const setupScreen = document.getElementById("setup-screen");
-    const countdownScreen = document.getElementById("countdown-screen");
-    const countdownTimer = document.getElementById("countdown-timer");
+        const setupScreen = document.getElementById("setup-screen");
+        const gameScreen = document.getElementById("game-screen");
+        const gameTimer = document.getElementById("game-timer");
+        const gameScore = document.getElementById("game-score");
+        const wordOverlay = document.getElementById("word-overlay");
+        const passBtn = document.getElementById("pass-btn");
+        const correctBtn = document.getElementById("correct-btn");
 
-    const gameScreen = document.getElementById("game-screen");
-    const gameTimer = document.getElementById("game-timer");
-    const gameScore = document.getElementById("game-score");
-    const wordOverlay = document.getElementById("word-overlay");
-    const passBtn = document.getElementById("pass-btn");
-    const correctBtn = document.getElementById("correct-btn");
+        const gameoverScreen = document.getElementById("gameover-screen");
+        const finalScore = document.getElementById("final-score");
 
-    const gameoverScreen = document.getElementById("gameover-screen");
-    const finalScore = document.getElementById("final-score");
-
-    // --- POPULATE CATEGORY DROPDOWN ---
-    function populateCategoryDropdown() {
-      categorySelect.innerHTML = "";
-      AVAILABLE_CATEGORIES.forEach(cat => {
-        const option = document.createElement("option");
-        option.value = cat.key;
-        option.innerText = cat.name;
-        categorySelect.appendChild(option);
-      });
-    }
-
-    // --- FETCH SPECIFIC CATEGORY JSON ---
-    async function loadCategoryData(categoryKey) {
-      startBtn.disabled = true;
-      startBtn.innerText = "Loading Category...";
-
-      try {
-        const response = await fetch(`../data/${categoryKey}.json`);
-        if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
-        
-        currentCategoryData = await response.json();
-
-        startBtn.innerText = "Start Game";
-        startBtn.disabled = false;
-      } catch (error) {
-        console.error(error);
-        alert(`Error loading data for "${categoryKey}"! Make sure ../data/${categoryKey}.json exists.`);
-      }
-    }
-
-    // --- EVENT LISTENERS ---
-    categorySelect.addEventListener("change", (e) => {
-      loadCategoryData(e.target.value);
-    });
-
-    setupForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-
-      if (!currentCategoryData || !currentCategoryData.items.length) {
-        alert("Selected category data is missing or empty!");
-        return;
-      }
-
-      gameState.timeRemaining = parseInt(timeLimitInput.value, 10) || 60;
-      
-      // Shuffle names from category items into wordDeck
-      wordDeck = currentCategoryData.items.map(item => item.name);
-      wordDeck.sort(() => Math.random() - 0.5);
-      currentWordIndex = 0;
-
-      setupScreen.style.display = "none";
-      countdownScreen.style.display = "block";
-      startGetReadyCountdown();
-    });
-
-    // --- COUNTDOWN (5 SECONDS) ---
-    function startGetReadyCountdown() {
-      let count = 5;
-      countdownTimer.innerText = count;
-
-      const countdownInterval = setInterval(() => {
-        count--;
-        if (count > 0) {
-          countdownTimer.innerText = count;
-        } else {
-          clearInterval(countdownInterval);
-          countdownScreen.style.display = "none";
-          
-          // Hide top header during gameplay
-          pageHeader.style.display = "none";
-          
-          gameScreen.style.display = "block";
-          startGame();
+        // --- POPULATE CATEGORY DROPDOWN ---
+        function populateCategoryDropdown() {
+            categorySelect.innerHTML = "";
+            AVAILABLE_CATEGORIES.forEach(cat => {
+            const option = document.createElement("option");
+            option.value = cat.key;
+            option.innerText = cat.name;
+            categorySelect.appendChild(option);
+            });
         }
-      }, 1000);
-    }
 
-    // --- START GAME LOOP & TIMER ---
-    function startGame() {
-      gameState.score = 0;
-      gameScore.innerText = gameState.score;
-      gameTimer.innerText = gameState.timeRemaining;
+        // --- FETCH SPECIFIC CATEGORY JSON ---
+        async function loadCategoryData(categoryKey) {
+            startBtn.disabled = true;
+            startBtn.innerText = "Loading Category...";
 
-      displayNextWord();
+            try {
+            const response = await fetch(`../data/${categoryKey}.json`);
+            if (!response.ok) throw new Error(`Failed to load ${categoryKey}.json`);
+            
+            currentCategoryData = await response.json();
 
-      gameState.timerInterval = setInterval(() => {
-        gameState.timeRemaining--;
-        gameTimer.innerText = gameState.timeRemaining;
-
-        if (gameState.timeRemaining <= 0) {
-          endGame();
+            startBtn.innerText = "Start Game";
+            startBtn.disabled = false;
+            } catch (error) {
+            console.error(error);
+            alert(`Error loading data for "${categoryKey}"! Make sure ../data/${categoryKey}.json exists.`);
+            }
         }
-      }, 1000);
-    }
 
-    // --- GAME ACTIONS ---
-    function displayNextWord() {
-      if (currentWordIndex >= wordDeck.length) {
-        // Reshuffle deck if all words were cycled through
-        wordDeck.sort(() => Math.random() - 0.5);
-        currentWordIndex = 0;
-      }
+        // --- EVENT LISTENERS ---
+        categorySelect.addEventListener("change", (e) => {
+            loadCategoryData(e.target.value);
+        });
 
-      wordOverlay.innerText = wordDeck[currentWordIndex];
-    }
+        setupForm.addEventListener("submit", (e) => {
+            e.preventDefault();
 
-    passBtn.addEventListener("click", () => {
-      currentWordIndex++;
-      displayNextWord();
-    });
+            if (!currentCategoryData || !currentCategoryData.items.length) {
+            alert("Selected category data is missing or empty!");
+            return;
+            }
 
-    correctBtn.addEventListener("click", () => {
-      gameState.score++;
-      gameScore.innerText = gameState.score;
-      currentWordIndex++;
-      displayNextWord();
-    });
+            gameState.timeRemaining = parseInt(timeLimitInput.value, 10) || 60;
+            
+            // Shuffle names from category items into wordDeck
+            wordDeck = currentCategoryData.items.map(item => item.name);
+            wordDeck.sort(() => Math.random() - 0.5);
+            currentWordIndex = 0;
 
-    // --- END GAME ---
-    function endGame() {
-      clearInterval(gameState.timerInterval);
-      gameScreen.style.display = "none";
-      
-      // Restore header on game over screen
-      pageHeader.style.display = "block";
-      
-      gameoverScreen.style.display = "block";
-      finalScore.innerText = gameState.score;
-    }
+            // Hide Setup & Header, Show Game Layout immediately
+            setupScreen.style.display = "none";
+            pageHeader.style.display = "none";
+            gameScreen.style.display = "block";
 
-    // --- INITIALIZATION ---
-    function init() {
-      populateCategoryDropdown();
-      if (AVAILABLE_CATEGORIES.length > 0) {
-        loadCategoryData(AVAILABLE_CATEGORIES[0].key);
-      }
-    }
+            // Auto-scroll to the bottom of the page instantly
+            window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: "auto"
+            });
 
-    init();
-  </script>
+            startGetReadyCountdown();
+        });
+
+        // --- COUNTDOWN (5 SECONDS) ---
+        function startGetReadyCountdown() {
+            let count = 5;
+            
+            // Disable buttons during countdown
+            passBtn.disabled = true;
+            correctBtn.disabled = true;
+
+            gameTimer.innerText = gameState.timeRemaining;
+            gameScore.innerText = 0;
+            wordOverlay.innerHTML = `<div style="font-size: 20px;">Place phone on forehead!</div><div style="font-size: 70px; margin-top: 10px;">${count}</div>`;
+
+            const countdownInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                wordOverlay.innerHTML = `<div style="font-size: 20px;">Place phone on forehead!</div><div style="font-size: 70px; margin-top: 10px;">${count}</div>`;
+            } else {
+                clearInterval(countdownInterval);
+                startGame();
+            }
+            }, 1000);
+        }
+
+        // --- START GAME LOOP & TIMER ---
+        function startGame() {
+            gameState.score = 0;
+            gameScore.innerText = gameState.score;
+            gameTimer.innerText = gameState.timeRemaining;
+
+            // Enable interactive buttons
+            passBtn.disabled = false;
+            correctBtn.disabled = false;
+
+            displayNextWord();
+
+            gameState.timerInterval = setInterval(() => {
+            gameState.timeRemaining--;
+            gameTimer.innerText = gameState.timeRemaining;
+
+            if (gameState.timeRemaining <= 0) {
+                endGame();
+            }
+            }, 1000);
+        }
+
+        // --- GAME ACTIONS ---
+        function displayNextWord() {
+            if (currentWordIndex >= wordDeck.length) {
+            // Reshuffle deck if all words were cycled through
+            wordDeck.sort(() => Math.random() - 0.5);
+            currentWordIndex = 0;
+            }
+
+            wordOverlay.innerText = wordDeck[currentWordIndex];
+        }
+
+        passBtn.addEventListener("click", () => {
+            if (passBtn.disabled) return;
+            currentWordIndex++;
+            displayNextWord();
+        });
+
+        correctBtn.addEventListener("click", () => {
+            if (correctBtn.disabled) return;
+            gameState.score++;
+            gameScore.innerText = gameState.score;
+            currentWordIndex++;
+            displayNextWord();
+        });
+
+        // --- END GAME ---
+        function endGame() {
+            clearInterval(gameState.timerInterval);
+            gameScreen.style.display = "none";
+            
+            // Restore header on game over screen
+            pageHeader.style.display = "block";
+            
+            gameoverScreen.style.display = "block";
+            finalScore.innerText = gameState.score;
+
+            // Scroll back up to top for game over screen
+            window.scrollTo(0, 0);
+        }
+
+        // --- INITIALIZATION ---
+        function init() {
+            populateCategoryDropdown();
+            if (AVAILABLE_CATEGORIES.length > 0) {
+            loadCategoryData(AVAILABLE_CATEGORIES[0].key);
+            }
+        }
+
+        init();
+    </script>
 
 </body>
 </html>
